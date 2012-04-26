@@ -161,11 +161,12 @@ define(function (require, exports, module) {
      * @param {!DOMElement} scrollElement A DOMElement containing a ul list element
      * @param {!string} selectedClassName A CSS class name on at most one list item in the contained list
      */
-    function sidebarList($scrollerElement, selectedClassName) {
+    function sidebarList($scrollerElement, selectedClassName, leafClassName) {
         var $listElement = $scrollerElement.find("ul"),
             $selectionMarker,
             $selectionTriangle,
-            $fileSection = $("#file-section");
+            $fileSection = $("#file-section"),
+            $previousSelection;
         
         // build selectionMarker and position absolute within the scroller
         $selectionMarker = $(document.createElement("div")).addClass("sidebarSelection");
@@ -181,7 +182,7 @@ define(function (require, exports, module) {
         $selectionTriangle = $(document.createElement("div")).addClass("sidebarSelectionTriangle");
         $fileSection.append($selectionTriangle);
         
-        selectedClassName = "." + (selectedClassName || "selected");
+        selectedClassName = (selectedClassName || "selected");
         
         var updateSelectionTriangle = function () {
             var scrollerOffset = $scrollerElement.offset(),
@@ -206,12 +207,31 @@ define(function (require, exports, module) {
         
         var updateSelectionMarker = function () {
             // find the selected list item
-            var $listItem = $listElement.find(selectedClassName).closest("li"),
-                isLeaf = $listItem.find("ul").length === 0;
+            var $selected = $listElement.find("." + selectedClassName),
+                $listItem = $selected.closest("li"),
+                isLeaf = (leafClassName) ? $listItem.hasClass(leafClassName) : true;
             
             // always hide selection visuals first to force layout (issue #719)
             $selectionTriangle.hide();
             $selectionMarker.hide();
+            
+            // if a folder is selected, select the last known leaf instead
+            if (!isLeaf && $previousSelection) {
+                // remove selectedClassName from folder
+                $selected.toggleClass(selectedClassName, false);
+                
+                // show previous leaf if it's visible
+                var isParentVisible = $previousSelection.parent("li:visible").length === 1;
+                $previousSelection.toggleClass(selectedClassName, isParentVisible);
+                
+                if (isParentVisible) {
+                    // retarget selection to the last leaf
+                    $selected = $previousSelection;
+                    
+                    $listItem = $selected.closest("li");
+                    isLeaf = true;
+                }
+            }
             
             if (($listItem.length === 1) && isLeaf) {
                 // list item position is relative to scroller
@@ -224,8 +244,8 @@ define(function (require, exports, module) {
                 $selectionMarker.css("top", selectionMarkerTop);
                 $selectionMarker.show();
                 
+                // move the selection triangle to align with the selectionMarker
                 updateSelectionTriangle();
-                
                 $selectionTriangle.show();
             
                 // fully scroll to the selectionMarker if it's not initially in the viewport
@@ -241,6 +261,8 @@ define(function (require, exports, module) {
                 } else if (selectionMarkerBottom <= scrollerElement.scrollTop) {
                     scrollerElement.scrollTop = selectionMarkerTop;
                 }
+                
+                $previousSelection = $selected;
             }
         };
         
